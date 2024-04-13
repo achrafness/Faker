@@ -1,5 +1,5 @@
 # Faker (Data generator)  Python
-#### [Video Demo](https://www.youtube.com/watch?v=kaP3F1DlyyQ)
+
 
 ## Description:
 
