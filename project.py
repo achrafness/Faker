@@ -153,20 +153,28 @@ class FakerData:
         
 
     def generate_fake_data(self, selected_choices: List[str], number_of_items: int) -> List[Dict[str, Any]]:
-        """Generate fake data based on selected choices"""
-        try:
-            fake_data = []
-            for _ in range(number_of_items):
-                data = {
-                    choice["type"]: choice["func"]()
-                    for choice in self.formatted_functionality
-                    if choice["type"] in selected_choices
-                }
-                fake_data.append(data)
-            return fake_data
-        except Exception as e:
-            logging.error(f"Error generating fake data: {str(e)}")
-            raise
+            """Generate fake data based on selected choices"""
+            if not selected_choices:
+                raise ValueError("At least one data type must be selected")
+                
+            available_types = {func["type"] for func in self.formatted_functionality}
+            invalid_types = set(selected_choices) - available_types
+            if invalid_types:
+                raise ValueError(f"Invalid data type(s): {', '.join(invalid_types)}")
+                
+            try:
+                fake_data = []
+                for _ in range(number_of_items):
+                    data = {}
+                    for type_name in selected_choices:
+                        func = next(f["func"] for f in self.formatted_functionality 
+                                if f["type"] == type_name)
+                        data[type_name] = func()
+                    fake_data.append(data)
+                return fake_data
+            except Exception as e:
+                logging.error(f"Error generating fake data: {str(e)}")
+                raise
 
 class FileHandler:
     """Class to handle file operations"""

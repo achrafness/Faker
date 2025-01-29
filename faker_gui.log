@@ -1,3 +1,5 @@
 2025-01-29 14:55:40,067 - CRITICAL - Application failed to start: Calling `.seed()` on instances is deprecated. Use the class method `Faker.seed()` instead.
 2025-01-29 14:55:43,388 - CRITICAL - Application failed to start: Calling `.seed()` on instances is deprecated. Use the class method `Faker.seed()` instead.
 2025-01-29 15:51:33,397 - CRITICAL - Application failed to start: MainWindow.create_input_group() takes 3 positional arguments but 4 were given
+2025-01-29 18:28:04,235 - INFO - Successfully wrote JSON file: file_koko.json
+2025-01-29 18:28:10,306 - ERROR - Error in generate_data: Please fill in all fields
