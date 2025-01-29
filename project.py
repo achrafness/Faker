@@ -68,7 +68,7 @@ class AttributeInputGroup(QFrame):
         
         # Data type dropdown
         type_combo = QComboBox()
-        type_combo.setFixedWidth(100)
+        type_combo.setFixedWidth(150)
         for func in self.faker_functions:
             type_combo.addItem(f"{func['type']} - {func['description']}", func['type'])
         
