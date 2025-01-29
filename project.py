@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import (QApplication, QDialog, QCheckBox, QMainWindow, 
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QMainWindow, 
     QLineEdit, QHBoxLayout, QWidget, QPushButton, QVBoxLayout, QLabel, 
     QRadioButton, QMessageBox, QScrollArea, QFrame,QComboBox,QListWidget)
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QFont, QIntValidator, QRegExpValidator, QIcon
+from PyQt5.QtGui import  QRegExpValidator, QIcon
 from faker import Faker
 import sys
 import csv
@@ -204,138 +204,7 @@ class FileHandler:
             logging.error(f"Error writing JSON file: {str(e)}")
             raise
 
-class CheckboxGroup(QFrame):
-    """Custom widget to group checkboxes with search and custom name functionality"""
-    def __init__(self, items: List[Dict[str, Any]], parent=None):
-        super().__init__(parent)
-        self.items = items
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Add search box
-        self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Search data types...")
-        self.search_box.textChanged.connect(self.filter_items)
-        layout.addWidget(self.search_box)
-
-        # Create scrollable area for items
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        
-        item_widget = QWidget()
-        self.item_layout = QVBoxLayout(item_widget)
-        
-        # Create checkbox and name input for each item
-        self.item_widgets = []
-        for item in self.items:
-            # Create container for each item
-            item_container = QWidget()
-            container_layout = QHBoxLayout(item_container)
-            container_layout.setContentsMargins(0, 0, 0, 0)
-            
-            # Add checkbox
-            checkbox = QCheckBox(f"{item['type']} - {item['description']}")
-            checkbox.setObjectName(f"checkbox_{item['type']}")
-            container_layout.addWidget(checkbox)
-            
-            # Add name input field
-            name_input = QLineEdit()
-            name_input.setPlaceholderText("Custom name...")
-            name_input.setObjectName(f"name_{item['type']}")
-            name_input.setFixedWidth(150)
-            container_layout.addWidget(name_input)
-            
-            self.item_layout.addWidget(item_container)
-            self.item_widgets.append({
-                'container': item_container,
-                'checkbox': checkbox,
-                'name_input': name_input,
-                'type': item['type']
-            })
-        
-        scroll.setWidget(item_widget)
-        layout.addWidget(scroll)
-
-    def filter_items(self, text: str):
-        """Filter items based on search text"""
-        for item in self.item_widgets:
-            item['container'].setVisible(text.lower() in item['checkbox'].text().lower())
-
-    def get_selected_items(self) -> List[Dict[str, str]]:
-        """Get selected items with their custom names"""
-        selected_items = []
-        for item in self.item_widgets:
-            if item['checkbox'].isChecked():
-                custom_name = item['name_input'].text().strip()
-                selected_items.append({
-                    'type': item['type'],
-                    'name': custom_name if custom_name else item['type']
-                })
-        return selected_items
     
-class DataTypeSelector(QFrame):
-    """Custom widget to select and add data types"""
-    def __init__(self, items: List[Dict[str, Any]], parent=None):
-        super().__init__(parent)
-        self.items = items
-        self.selected_types = []
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Add type selection group
-        selection_layout = QHBoxLayout()
-        
-        # Dropdown for data types
-        self.type_combo = QComboBox()
-        for item in self.items:
-            self.type_combo.addItem(f"{item['type']} - {item['description']}", item['type'])
-        selection_layout.addWidget(self.type_combo)
-        
-        # Add button
-        add_button = QPushButton("Add")
-        add_button.clicked.connect(self.add_type)
-        selection_layout.addWidget(add_button)
-        
-        layout.addLayout(selection_layout)
-        
-        # List of selected types
-        self.selected_list = QListWidget()
-        layout.addWidget(self.selected_list)
-        
-        # Remove button
-        remove_button = QPushButton("Remove Selected")
-        remove_button.clicked.connect(self.remove_selected)
-        layout.addWidget(remove_button)
-
-    def add_type(self):
-        """Add selected type to the list"""
-        current_type = self.type_combo.currentData()
-        current_text = self.type_combo.currentText()
-        
-        # Check if type is already in the list
-        existing_items = [self.selected_list.item(i).data(Qt.UserRole) 
-                         for i in range(self.selected_list.count())]
-        
-        if current_type not in existing_items:
-            item = QtWidgets.QListWidgetItem(current_text)
-            item.setData(Qt.UserRole, current_type)
-            self.selected_list.addItem(item)
-
-    def remove_selected(self):
-        """Remove selected items from the list"""
-        for item in self.selected_list.selectedItems():
-            self.selected_list.takeItem(self.selected_list.row(item))
-
-    def get_selected_types(self) -> List[str]:
-        """Get list of selected type identifiers"""
-        return [self.selected_list.item(i).data(Qt.UserRole) 
-                for i in range(self.selected_list.count())]
-        
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
