@@ -1,282 +1,521 @@
-from PyQt5.QtWidgets import QApplication, QDialog, QCheckBox, QMainWindow , QLineEdit, QHBoxLayout , QWidget ,QPushButton , QVBoxLayout , QLabel, QRadioButton 
-from PyQt5 import QtWidgets 
-from PyQt5.QtCore import Qt ,QRegExp
-from PyQt5.QtGui import QFont , QIntValidator  ,QRegExpValidator , QIcon
+from PyQt5.QtWidgets import (QApplication, QDialog, QCheckBox, QMainWindow, 
+    QLineEdit, QHBoxLayout, QWidget, QPushButton, QVBoxLayout, QLabel, 
+    QRadioButton, QMessageBox, QScrollArea, QFrame,QComboBox,QListWidget)
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtGui import QFont, QIntValidator, QRegExpValidator, QIcon
 from faker import Faker
 import sys
-import csv 
+import csv
 import json
+from pathlib import Path
+from typing import List, Dict, Any
+import logging
 
-fake = Faker()
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='faker_gui.log'
+)
+class AttributeInputGroup(QFrame):
+    """Custom widget for attribute name input and data type selection"""
+    def __init__(self, faker_functions: List[Dict[str, Any]], parent=None):
+        super().__init__(parent)
+        self.faker_functions = faker_functions
+        self.attribute_rows = []
+        self.setup_ui()
 
-formatted_functionality = [
-    {"func": fake.name, "type": "name"},
-    {"func": fake.last_name, "type": "last_name"},
-    {"func": fake.email, "type": "email"},
-    {"func": fake.phone_number, "type": "phone_number"},
-    {"func": fake.address, "type": "address"},
-    {"func": fake.text, "type": "text"},
-    {"func": fake.date, "type": "date"},
-    {"func": fake.time, "type": "time"},
-    {"func": fake.url, "type": "url"},
-    {"func": fake.job, "type": "job"},
-    {"func": fake.company, "type": "company"},
-    {"func": fake.country, "type": "country"},
-    {"func": fake.currency_code, "type": "currency_code"},
-    {"func": fake.file_name, "type": "file_name"},
-    {"func": fake.image_url, "type": "image_url"},
-    {"func": fake.ipv4, "type": "ipv4"},
-    {"func": fake.user_name, "type": "user_name"},
-    {"func": fake.color_name, "type": "color_name"},
-    {"func": fake.ssn, "type": "ssn"},
-    {"func": fake.boolean, "type": "boolean"},
-    {"func": fake.credit_card_number, "type": "credit_card_number"},
-    {"func": fake.date_of_birth, "type": "date_of_birth"},
-    {"func": fake.file_extension, "type": "file_extension"},
-    {"func": fake.hex_color, "type": "hex_color"},
-    {"func": fake.isbn10, "type": "isbn10"},
-    {"func": fake.isbn13, "type": "isbn13"},
-    {"func": fake.language_code, "type": "language_code"},
-    {"func": fake.mac_address, "type": "mac_address"},
-    {"func": fake.mime_type, "type": "mime_type"},
-    {"func": fake.password, "type": "password"},
-    {"func": fake.random_digit, "type": "random_digit"},
-    {"func": fake.random_letter, "type": "random_letter"},
-    {"func": fake.street_address, "type": "street_address"},
-    {"func": fake.word, "type": "word"},
-    {"func": fake.zipcode, "type": "zipcode"},
-    {"func": fake.latitude, "type": "latitude"},
-    {"func": fake.longitude, "type": "longitude"}
-]
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Header
+        header = QLabel("Define Data Attributes")
+        header.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(header)
 
-class Window(QMainWindow):
+        # Scrollable area for attribute inputs
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        
+        scroll_widget = QWidget()
+        self.scroll_layout = QVBoxLayout(scroll_widget)
+        self.scroll_layout.setAlignment(Qt.AlignTop)  # Align content to top
+        self.scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_layout.setSpacing(10)
+        
+        # Add initial attribute row
+        self.add_attribute_row()
+        
+        # Add button
+        add_button = QPushButton("+ Add Attribute")
+        add_button.clicked.connect(self.add_attribute_row)
+        self.scroll_layout.addWidget(add_button)
+        
+        scroll.setWidget(scroll_widget)
+        layout.addWidget(scroll)
+
+    def add_attribute_row(self):
+        """Add a new row with attribute name input and data type dropdown"""
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        
+        # Attribute name input
+        name_input = QLineEdit()
+        name_input.setPlaceholderText("Attribute name")
+        name_input.setFixedWidth(150)
+        
+        # Data type dropdown
+        type_combo = QComboBox()
+        type_combo.setFixedWidth(100)
+        for func in self.faker_functions:
+            type_combo.addItem(f"{func['type']} - {func['description']}", func['type'])
+        
+        # Remove button
+        remove_button = QPushButton("×")
+        remove_button.setFixedSize(20, 30)
+        remove_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        remove_button.setStyleSheet("padding: 0px; margin: 0px; font-size: 14px;")
+        remove_button.clicked.connect(lambda: self.remove_attribute_row(row_widget))
+        
+        row_layout.addWidget(name_input)
+        row_layout.addWidget(type_combo)
+        row_layout.addWidget(remove_button)
+        row_layout.addStretch()
+        
+        # Insert the new row before the Add button
+        self.scroll_layout.insertWidget(len(self.attribute_rows), row_widget)
+        self.attribute_rows.append(row_widget)
+
+    def remove_attribute_row(self, row_widget):
+        """Remove an attribute row"""
+        if len(self.attribute_rows) > 1:  # Keep at least one row
+            self.attribute_rows.remove(row_widget)
+            row_widget.deleteLater()
+
+    def get_selected_attributes(self) -> List[Dict[str, str]]:
+        """Get the list of attribute names and their corresponding faker types"""
+        attributes = []
+        for row in self.attribute_rows:
+            name_input = row.findChild(QLineEdit)
+            type_combo = row.findChild(QComboBox)
+            if name_input and type_combo and name_input.text().strip():
+                attributes.append({
+                    'name': name_input.text().strip(),
+                    'type': type_combo.currentData()
+                })
+        return attributes
+    
+class FakerData:
+    """Class to handle Faker data generation and functionality"""
+    def __init__(self):
+        self.fake = Faker()
+        self.formatted_functionality = [
+            {"func": self.fake.name, "type": "name", "description": "Full name"},
+            {"func": self.fake.last_name, "type": "last_name", "description": "Last name only"},
+            {"func": self.fake.email, "type": "email", "description": "Email address"},
+            {"func": self.fake.phone_number, "type": "phone_number", "description": "Phone number"},
+            {"func": self.fake.address, "type": "address", "description": "Full address"},
+            {"func": self.fake.text, "type": "text", "description": "Random text"},
+            {"func": self.fake.date, "type": "date", "description": "Random date"},
+            {"func": self.fake.time, "type": "time", "description": "Random time"},
+            {"func": self.fake.url, "type": "url", "description": "Website URL"},
+            {"func": self.fake.job, "type": "job", "description": "Job title"},
+            {"func": self.fake.company, "type": "company", "description": "Company name"},
+            {"func": self.fake.country, "type": "country", "description": "Country name"},
+            {"func": self.fake.currency_code, "type": "currency_code", "description": "Currency code"},
+            {"func": self.fake.file_name, "type": "file_name", "description": "Random file name"},
+            {"func": self.fake.image_url, "type": "image_url", "description": "Image URL"},
+            {"func": self.fake.ipv4, "type": "ipv4", "description": "IPv4 address"},
+            {"func": self.fake.user_name, "type": "user_name", "description": "Username"},
+            {"func": self.fake.color_name, "type": "color_name", "description": "Color name"},
+            {"func": self.fake.ssn, "type": "ssn", "description": "Social Security Number"},
+            {"func": self.fake.boolean, "type": "boolean", "description": "True/False"},
+            {"func": self.fake.credit_card_number, "type": "credit_card_number", "description": "Credit card number"},
+            {"func": self.fake.date_of_birth, "type": "date_of_birth", "description": "Date of birth"},
+            {"func": self.fake.file_extension, "type": "file_extension", "description": "File extension"},
+            {"func": self.fake.hex_color, "type": "hex_color", "description": "Hex color code"},
+            {"func": self.fake.isbn10, "type": "isbn10", "description": "ISBN-10"},
+            {"func": self.fake.isbn13, "type": "isbn13", "description": "ISBN-13"},
+            {"func": self.fake.language_code, "type": "language_code", "description": "Language code"},
+            {"func": self.fake.mac_address, "type": "mac_address", "description": "MAC address"},
+            {"func": self.fake.mime_type, "type": "mime_type", "description": "MIME type"},
+            {"func": self.fake.password, "type": "password", "description": "Random password"},
+            {"func": self.fake.random_digit, "type": "random_digit", "description": "Random digit (0-9)"},
+            {"func": self.fake.random_letter, "type": "random_letter", "description": "Random letter (a-z)"},
+            {"func": self.fake.street_address, "type": "street_address", "description": "Street address"},
+            {"func": self.fake.word, "type": "word", "description": "Random word"},
+            {"func": self.fake.zipcode, "type": "zipcode", "description": "Zip code"},
+            {"func": self.fake.latitude, "type": "latitude", "description": "Latitude coordinate"},
+            {"func": self.fake.longitude, "type": "longitude", "description": "Longitude coordinate"},
+        ]
+        
+
+    def generate_fake_data(self, selected_choices: List[str], number_of_items: int) -> List[Dict[str, Any]]:
+        """Generate fake data based on selected choices"""
+        try:
+            fake_data = []
+            for _ in range(number_of_items):
+                data = {
+                    choice["type"]: choice["func"]()
+                    for choice in self.formatted_functionality
+                    if choice["type"] in selected_choices
+                }
+                fake_data.append(data)
+            return fake_data
+        except Exception as e:
+            logging.error(f"Error generating fake data: {str(e)}")
+            raise
+
+class FileHandler:
+    """Class to handle file operations"""
+    @staticmethod
+    def write_csv(file_name: str, header: List[str], data: List[Dict[str, Any]]) -> None:
+        """Write data to CSV file"""
+        try:
+            output_path = Path(file_name).with_suffix('.csv')
+            with open(output_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=header)
+                writer.writeheader()
+                writer.writerows(data)
+            logging.info(f"Successfully wrote CSV file: {output_path}")
+        except Exception as e:
+            logging.error(f"Error writing CSV file: {str(e)}")
+            raise
+
+    @staticmethod
+    def write_json(file_name: str, data: List[Dict[str, Any]]) -> None:
+        """Write data to JSON file"""
+        try:
+            output_path = Path(file_name).with_suffix('.json')
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+            logging.info(f"Successfully wrote JSON file: {output_path}")
+        except Exception as e:
+            logging.error(f"Error writing JSON file: {str(e)}")
+            raise
+
+class CheckboxGroup(QFrame):
+    """Custom widget to group checkboxes with search and custom name functionality"""
+    def __init__(self, items: List[Dict[str, Any]], parent=None):
+        super().__init__(parent)
+        self.items = items
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Add search box
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search data types...")
+        self.search_box.textChanged.connect(self.filter_items)
+        layout.addWidget(self.search_box)
+
+        # Create scrollable area for items
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        
+        item_widget = QWidget()
+        self.item_layout = QVBoxLayout(item_widget)
+        
+        # Create checkbox and name input for each item
+        self.item_widgets = []
+        for item in self.items:
+            # Create container for each item
+            item_container = QWidget()
+            container_layout = QHBoxLayout(item_container)
+            container_layout.setContentsMargins(0, 0, 0, 0)
+            
+            # Add checkbox
+            checkbox = QCheckBox(f"{item['type']} - {item['description']}")
+            checkbox.setObjectName(f"checkbox_{item['type']}")
+            container_layout.addWidget(checkbox)
+            
+            # Add name input field
+            name_input = QLineEdit()
+            name_input.setPlaceholderText("Custom name...")
+            name_input.setObjectName(f"name_{item['type']}")
+            name_input.setFixedWidth(150)
+            container_layout.addWidget(name_input)
+            
+            self.item_layout.addWidget(item_container)
+            self.item_widgets.append({
+                'container': item_container,
+                'checkbox': checkbox,
+                'name_input': name_input,
+                'type': item['type']
+            })
+        
+        scroll.setWidget(item_widget)
+        layout.addWidget(scroll)
+
+    def filter_items(self, text: str):
+        """Filter items based on search text"""
+        for item in self.item_widgets:
+            item['container'].setVisible(text.lower() in item['checkbox'].text().lower())
+
+    def get_selected_items(self) -> List[Dict[str, str]]:
+        """Get selected items with their custom names"""
+        selected_items = []
+        for item in self.item_widgets:
+            if item['checkbox'].isChecked():
+                custom_name = item['name_input'].text().strip()
+                selected_items.append({
+                    'type': item['type'],
+                    'name': custom_name if custom_name else item['type']
+                })
+        return selected_items
+    
+class DataTypeSelector(QFrame):
+    """Custom widget to select and add data types"""
+    def __init__(self, items: List[Dict[str, Any]], parent=None):
+        super().__init__(parent)
+        self.items = items
+        self.selected_types = []
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Add type selection group
+        selection_layout = QHBoxLayout()
+        
+        # Dropdown for data types
+        self.type_combo = QComboBox()
+        for item in self.items:
+            self.type_combo.addItem(f"{item['type']} - {item['description']}", item['type'])
+        selection_layout.addWidget(self.type_combo)
+        
+        # Add button
+        add_button = QPushButton("Add")
+        add_button.clicked.connect(self.add_type)
+        selection_layout.addWidget(add_button)
+        
+        layout.addLayout(selection_layout)
+        
+        # List of selected types
+        self.selected_list = QListWidget()
+        layout.addWidget(self.selected_list)
+        
+        # Remove button
+        remove_button = QPushButton("Remove Selected")
+        remove_button.clicked.connect(self.remove_selected)
+        layout.addWidget(remove_button)
+
+    def add_type(self):
+        """Add selected type to the list"""
+        current_type = self.type_combo.currentData()
+        current_text = self.type_combo.currentText()
+        
+        # Check if type is already in the list
+        existing_items = [self.selected_list.item(i).data(Qt.UserRole) 
+                         for i in range(self.selected_list.count())]
+        
+        if current_type not in existing_items:
+            item = QtWidgets.QListWidgetItem(current_text)
+            item.setData(Qt.UserRole, current_type)
+            self.selected_list.addItem(item)
+
+    def remove_selected(self):
+        """Remove selected items from the list"""
+        for item in self.selected_list.selectedItems():
+            self.selected_list.takeItem(self.selected_list.row(item))
+
+    def get_selected_types(self) -> List[str]:
+        """Get list of selected type identifiers"""
+        return [self.selected_list.item(i).data(Qt.UserRole) 
+                for i in range(self.selected_list.count())]
+        
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Faker")
-        self.setGeometry(100, 100, 800, 600)  
-        self.setMaximumHeight(600)
-        self.setMinimumHeight(600)
-        self.setMaximumWidth(800)
-        self.setMinimumWidth(800)
+        self.faker_data = FakerData()
+        self.file_handler = FileHandler()
+        self.setup_ui()
+        self.setup_styles()
+
+    def setup_ui(self):
+        self.setWindowTitle("Faker GUI")
+        self.setGeometry(100, 100, 1000, 700)
         self.center_on_screen()
-        font = QFont("Helvetica") 
-        self.setFont(font)
+
+        main_widget = QWidget()
+        main_layout = QHBoxLayout(main_widget)
+
+        # Left side - Attribute input group
+        self.attribute_group = AttributeInputGroup(self.faker_data.formatted_functionality)
+        main_layout.addWidget(self.attribute_group)
+
+        # Right side - Controls
+        control_layout = QVBoxLayout()
+
+        # Title
+        title_label = QLabel("Data Generator")
+        title_label.setObjectName("title_label")
+        title_label.setAlignment(Qt.AlignCenter)
+        control_layout.addWidget(title_label)
+
+        # File name input
+        file_layout = self.create_input_group("File Name:", "file_input", "[A-Za-z0-9_]+")
+        control_layout.addLayout(file_layout)
+
+        # Number of records input
+        number_layout = self.create_input_group("Number of Records:", "number_input", "\\d+")
+        control_layout.addLayout(number_layout)
+
+        # File format selection
+        format_layout = QHBoxLayout()
+        self.csv_radio = QRadioButton("CSV")
+        self.json_radio = QRadioButton("JSON")
+        format_layout.addWidget(self.csv_radio)
+        format_layout.addWidget(self.json_radio)
+        control_layout.addLayout(format_layout)
+
+        # Generate button
+        generate_button = QPushButton("Generate Data")
+        generate_button.clicked.connect(self.generate_data)
+        control_layout.addWidget(generate_button)
+
+        main_layout.addLayout(control_layout)
+        self.setCentralWidget(main_widget)
+
+    def create_input_group(self, label_text: str, input_name: str, regex_pattern: str = None) -> QHBoxLayout:
+        """Create a labeled input group with optional regex validation"""
+        layout = QHBoxLayout()
+        label = QLabel(label_text)
+        input_field = QLineEdit()
+        input_field.setObjectName(input_name)
+        input_field.setFixedSize(200, 40)
+        
+        # Add regex validator if pattern is provided
+        if regex_pattern:
+            validator = QRegExpValidator(QRegExp(regex_pattern))
+            input_field.setValidator(validator)
+        
+        layout.addWidget(label)
+        layout.setContentsMargins(10, 5, 10, 5)
+        layout.setSpacing(10)
+        layout.addWidget(input_field)
+        return layout
+
+    def setup_styles(self):
+        """Set up the application styles"""
         self.setStyleSheet("""
-            QLabel {
+            QMainWindow {
+                background-color: #f5f5f5;
+            }
+            QLabel#title_label {
+                font-size: 32pt;
+                font-weight: bold;
+                color: #2c3e50;
+                margin: 20px;
+            }
+            QLineEdit, QComboBox {
+                padding: 8px;
+                border: 2px solid #bdc3c7;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QLineEdit:focus, QComboBox:focus {
+                border-color: #3498db;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
                 font-size: 16px;
+                min-width: 150px;
             }
-            QLabel#title_label{
-                font-size: 32pt;  
-                font-weight: bold;  
+            QPushButton:hover {
+                background-color: #2980b9;
             }
-            QLineEdit {
+            QRadioButton {
                 font-size: 14px;
                 padding: 5px;
             }
-            QCheckBox, QRadioButton {
-                font-size: 14px;
+            QListWidget {
+                border: 2px solid #bdc3c7;
+                border-radius: 5px;
+                padding: 5px;
+                background-color: white;
             }
-            QPushButton {
-                font-size: 16px;
-                padding: 8px 16px;
-                background-color: #4CAF50;
-                border: none;
+            QListWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
                 color: white;
-                text-align: center;
-                text-decoration: none;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QDialog {
-                border: 1px solid #45a049;
-                width: 300px;
-                height: 100px;
             }
         """)
-        
-        # main_layout 
-        main_layout = QHBoxLayout()
 
-        # add three colum the one colum have a list of a fake data
-        colum_one = QVBoxLayout()  
-        colum_two = QVBoxLayout()
-        colum_three = QVBoxLayout()   
-        
-        # add the content of the list in the three colum 
-        checkboxes_per_column = len(formatted_functionality) // 3
-        for i in range(0, checkboxes_per_column):
-            colum_one.addWidget(QCheckBox(formatted_functionality[i]["type"]))
-        for i in range(checkboxes_per_column, checkboxes_per_column * 2):
-            colum_two.addWidget(QCheckBox(formatted_functionality[i]["type"]))
-        for i in range(checkboxes_per_column * 2, len(formatted_functionality)):
-            colum_three.addWidget(QCheckBox(formatted_functionality[i]["type"]))
-        
-        layout_columns = QHBoxLayout()
-        layout_columns.addLayout(colum_one)
-        layout_columns.addLayout(colum_two)
-        layout_columns.addLayout(colum_three) 
+    def generate_data(self):
+        """Generate and save the fake data"""
+        try:
+            # Validate inputs
+            file_name = self.findChild(QLineEdit, "file_input").text()
+            number_str = self.findChild(QLineEdit, "number_input").text()
+            
+            if not all([file_name, number_str, any([self.csv_radio.isChecked(), self.json_radio.isChecked()])]):
+                raise ValueError("Please fill in all fields")
 
-        layout_text = QVBoxLayout()
-        # Add a title label 
-        title_label = QLabel("Data\nGenerator")
-        title_font = QFont("Arial", 32)  
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignCenter) 
-        title_label.setObjectName("title_label")  
-        layout_text.addWidget(title_label, alignment=Qt.AlignCenter)  
-
-        # File Name layout
-        regex = QRegExp("[A-Za-z0-9_]+")
-        validator = QRegExpValidator(regex)
-        file_layout = QHBoxLayout()
-        file_label = QLabel("File Name:")
-        file_layout.addWidget(file_label)
-        file_input = QLineEdit()
-        file_input.setObjectName("file_input")  
-        file_input.setPlaceholderText("Enter file name")
-        file_input.setFixedSize(200, 30)
-        file_input.setValidator(validator)
-        file_layout.addWidget(file_input)
-        layout_text.addLayout(file_layout)
-
-        # Number of Data layout
-        validator_int = QIntValidator()
-        number_layout = QHBoxLayout()
-        number_label = QLabel("Number of Data:")
-        number_layout.addWidget(number_label)
-        number_input = QLineEdit()
-        number_input.setObjectName("number_input") 
-        number_input.setPlaceholderText("Enter number")
-        number_input.setFixedSize(200, 30)
-        number_input.setValidator(validator_int) 
-        number_layout.addWidget(number_input)
-        layout_text.addLayout(number_layout)
-
-        # Radio buttons layout
-        radio_layout = QHBoxLayout()
-        csv_radio_button = QRadioButton("CSV")
-        radio_layout.addWidget(csv_radio_button)
-        json_radio_button = QRadioButton("JSON")
-        radio_layout.addWidget(json_radio_button)
-        layout_text.addLayout(radio_layout)
-
-        # Add generate button
-        generate_button = QPushButton("Generate")
-        generate_button.clicked.connect(self.click)
-        
-        layout_text.addWidget(generate_button)
-
-        main_layout.addLayout(layout_columns)
-        main_layout.addLayout(layout_text)
-        widget = QWidget()
-        widget.setLayout(main_layout)
-        self.setCentralWidget(widget)
-    
-    def click(self):
-        try :
-            number = int(self.get_number())
+            number = int(number_str)
             if number <= 0:
-                raise ValueError("Number of data must be greater than 0")
-            elif self.get_radio() == None:
-                raise ValueError("Please select a file type")
-            elif self.get_name_file() == None:
-                raise ValueError("Please enter a file name")
-            elif len(self.get_check()) == 0:
-                raise ValueError("Please select at least one data type")
-            else: 
-                make_file(self.get_check(), number, self.get_radio() ,self.get_name_file())
-        except ValueError:
-            dlg = QDialog(self)
-            dlg.setWindowTitle("Error")
-            dlg.setLayout(QVBoxLayout())
-            dlg.layout().addWidget(QLabel("Please  provide all information to generate the file."))
-            dlg.exec_()
+                raise ValueError("Number of records must be greater than 0")
 
-    def get_check(self):
-        all_checkboxes = self.findChildren(QCheckBox)
-        selected_choices = []
-        for checkbox in all_checkboxes:
-            if checkbox.isChecked():
-                selected_choices.append(checkbox.text())
-        return selected_choices
-    
-    def get_radio(self):
-        all_radio_buttons = self.findChildren(QRadioButton)
-        selected_radio = None
-        for radio_button in all_radio_buttons:
-            if radio_button.isChecked():
-                selected_radio = radio_button.text()
-                break
-        return selected_radio
+            # Get selected attributes
+            attributes = self.attribute_group.get_selected_attributes()
+            if not attributes:
+                raise ValueError("Please add at least one attribute")
 
-    def get_name_file(self):
-        file_input = self.findChild(QLineEdit, "file_input")  
-        if file_input:
-            return file_input.text()
-        return 
+            # Generate fake data
+            fake_data = []
+            for _ in range(number):
+                record = {}
+                for attr in attributes:
+                    faker_func = next(f["func"] for f in self.faker_data.formatted_functionality 
+                                   if f["type"] == attr["type"])
+                    record[attr["name"]] = faker_func()
+                fake_data.append(record)
 
-    def get_number(self):
-        number_input = self.findChild(QLineEdit, "number_input")  
-        if number_input:
-            return number_input.text()
-        return 0
-    
+            # Save data
+            if self.csv_radio.isChecked():
+                self.file_handler.write_csv(file_name, [attr["name"] for attr in attributes], fake_data)
+            else:
+                self.file_handler.write_json(file_name, fake_data)
+
+            QMessageBox.information(self, "Success", f"Generated {number} records successfully!")
+
+        except Exception as e:
+            logging.error(f"Error in generate_data: {str(e)}")
+            QMessageBox.critical(self, "Error", str(e))
+
+
     def center_on_screen(self):
+        """Center the window on the screen"""
         frame_geometry = self.frameGeometry()
-        center_point = QtWidgets.QDesktopWidget().availableGeometry().center()
-        # Move the center of the frame geometry to the center point.
-        frame_geometry.moveCenter(center_point)
-        # Move the top-left point of the application window to the top-left point of the frame geometry.
+        screen_center = QtWidgets.QDesktopWidget().availableGeometry().center()
+        frame_geometry.moveCenter(screen_center)
         self.move(frame_geometry.topLeft())
-
-def generate_fake_data(selected_choices, number_of_items):
-    fake_data = []
-    if not selected_choices or not number_of_items:
-        raise ValueError("Please provide all information to generate the file.")
-    for _ in  range(number_of_items):
-        data = {}
-        for choice in formatted_functionality:
-            if choice["type"] in selected_choices:
-                data[choice["type"]] = choice["func"]()
-        fake_data.append(data)
-    return fake_data
-
-def make_file(selected_choices, number_of_items , type_file , file_name):
-    fake_data = generate_fake_data(selected_choices, number_of_items)
-    if(type_file == "JSON"):
-        write_json(file_name, fake_data)
-    else:
-        write_csv(file_name, selected_choices, fake_data)
-
-def write_csv(file_name, header , data):
-    if not all([file_name, header, data]):
-        raise ValueError("Please provide all information to generate the file.")
-    if not (isinstance(header, (list, tuple)) or isinstance(data, (dict,list))):
-        raise ValueError("Invalid data format")
-    with open(f'{file_name}.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=header)
-        writer.writeheader()
-        writer.writerows(data)
-
-def write_json(file_name, data):
-    if not file_name or not data:
-        raise ValueError("Please provide all information to generate the file.")
-    if not isinstance(data, (dict,list, tuple)):
-        raise ValueError("Invalid data format")
-    with open(f'{file_name}.json', 'w') as f:
-        json.dump(data, f, indent=4)
-
-def main():    
-    app = QApplication(sys.argv)
-    app.setApplicationName("Faker")
-    app_icon = QIcon(r'./images/logo.png')
-    app.setWindowIcon(app_icon)
-    window = Window()
-    window.show()
-    app.exec_()
+        
+def main():
+    try:
+        app = QApplication(sys.argv)
+        app.setApplicationName("Faker GUI")
+        app_icon = QIcon('./images/logo.png')
+        app.setWindowIcon(app_icon)
+        
+        window = MainWindow()
+        window.show()
+        
+        sys.exit(app.exec_())
+    except Exception as e:
+        logging.critical(f"Application failed to start: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()
-
